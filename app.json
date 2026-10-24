@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Spin Duel",
+    "slug": "spin-duel",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.spinduel.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0D12"
+      }
+    },
+    "splash": {
+      "backgroundColor": "#0B0D12"
+    },
+    "extra": {
+      "gameMode": "demo-coins-only"
+    }
+  }
+}
