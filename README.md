@@ -1,31 +1,40 @@
 # Spin Duel
 
-A React Native + Expo starter for a premium-looking 1-vs-1 spin game. This initial build is a UI prototype: the spin result is local and is **not** authoritative multiplayer matchmaking.
+Premium responsive Next.js demo for a 1-vs-1 spin game. This prototype uses **simulated rupee amounts only** and virtual points. It has no UPI integration, deposits, cash prizes, transfers, or withdrawals.
 
-## Android APK through GitHub Actions
-
-Every push to `main`, pull request targeting `main`, or manual workflow dispatch runs `.github/workflows/android-apk.yml` on GitHub-hosted Ubuntu runners. The runner installs Node.js, Java 17, and Android SDK, generates the native Android project with Expo Prebuild, and builds an installable **debug APK** using Gradle. No Expo/EAS cloud build or Expo token is needed.
-
-1. Open the repository's **Actions** tab.
-2. Select **Spin Duel Android APK**.
-3. Open the latest successful run.
-4. Under **Artifacts**, download `spin-duel-debug-apk` and extract `app-debug.apk`.
-5. Transfer the APK to an Android phone and install it. Android may ask you to allow installation from that file manager/browser.
+## Stack
+- Next.js App Router + TypeScript
+- Responsive custom CSS + Framer Motion + Tailwind CSS
+- Supabase Auth (Google OAuth), PostgreSQL, RLS and Realtime
+- Netlify hosting
+- GitHub Actions CI (type check + production build)
 
 ## Local development
+1. Install Node.js 20+.
+2. Copy `.env.example` to `.env.local`.
+3. Add a dedicated Spin Duel Supabase project URL and publishable/anon key.
+4. Run `npm install`, then `npm run dev`.
+5. Open http://localhost:3000.
 
-```bash
-npm install
-npx expo start
-```
+Without Supabase environment variables, the UI runs in demo mode; Google sign-in and database-backed functionality are not connected.
 
-To generate the Android project locally, run `npx expo prebuild --platform android`. The CI workflow regenerates it on every run, so generated `android/` files are intentionally not required in the repository.
+## Supabase setup
+1. Create a **separate project for Spin Duel**; do not reuse unrelated production databases.
+2. Run the SQL in `supabase/migrations/202610240001_spin_duel_demo.sql` in the Supabase SQL editor.
+3. In Authentication → Providers, enable Google and configure the Google OAuth client ID/secret.
+4. Add the local and deployed URLs to the Supabase Auth redirect allowlist, including `/auth/callback`.
+5. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Netlify environment variables.
 
-## Next steps
+The SQL includes a server-authoritative demo match RPC and RLS policies. It does not include payment or redeemable balance tables. Review the SQL and policies before production use.
 
-- Connect Supabase Auth and a database-backed matchmaking function.
-- Store match outcomes and wallet/ledger changes on the server; never trust a client-generated winner.
-- Add real multiplayer synchronization, match history, profile and wallet screens.
-- Keep this version demo-only: virtual coins have no cash value, and there are no deposits, withdrawals, entry fees or cash prizes.
+## Netlify
+Import this GitHub repository into Netlify. The included `netlify.toml` configures the Next.js adapter. Set the two public Supabase environment variables in Site configuration → Environment variables, then deploy.
 
-Never commit Supabase service-role keys, signing keys, or other secrets to the repository.
+## Admin access
+The admin page is a safe placeholder until an owner grants an admin role through trusted database-side operations. Never allow users to grant themselves admin access from the browser.
+
+## GitHub Actions
+Every push/PR to `main` runs `npm install`, TypeScript checks, and a production build. No secrets are required for the demo CI build.
+
+## Non-monetary demo boundary
+No UPI SDK, payment gateway, cash-out, deposit, wallet transaction, or redeemable prize functionality is present. Any displayed amounts in future UI work must be clearly marked simulated and cannot be exchanged for money.
