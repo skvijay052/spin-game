@@ -71,11 +71,11 @@ create policy "Users update own profile" on public.profiles for update to authen
 drop policy if exists "Users create own profile" on public.profiles;
 create policy "Users create own profile" on public.profiles for insert to authenticated with check (auth.uid() = id and role = 'player');
 drop policy if exists "Players see matches they joined" on public.matches;
-create policy "Players see matches they joined" on public.matches for select to authenticated using (exists (select 1 from public.match_players mp where mp.match_id = id and mp.player_id = auth.uid()) or status = 'waiting');
+create policy "Players see matches they joined" on public.matches for select to authenticated using (public.is_match_participant(id, auth.uid()) or status = 'waiting');
 drop policy if exists "Players see match participants" on public.match_players;
 create policy "Players see match participants" on public.match_players for select to authenticated using (exists (select 1 from public.match_players mine where mine.match_id = match_players.match_id and mine.player_id = auth.uid()));
 drop policy if exists "Players see match events" on public.match_events;
-create policy "Players see match events" on public.match_events for select to authenticated using (exists (select 1 from public.match_players mp where mp.match_id = match_events.match_id and mp.player_id = auth.uid()));
+create policy "Players see match events" on public.match_events for select to authenticated using (public.is_match_participant(match_id, auth.uid()));
 drop policy if exists "Admins see audit logs" on public.admin_audit_logs;
 create policy "Admins see audit logs" on public.admin_audit_logs for select to authenticated using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 
