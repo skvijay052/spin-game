@@ -43,8 +43,11 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Align dependencies with Expo SDK
+        run: npx expo install --fix
+
       - name: Generate native Android project
-        run: npx expo prebuild --platform android --clean --non-interactive
+        run: npx expo prebuild --platform android --clean
         env:
           CI: '1'
 
