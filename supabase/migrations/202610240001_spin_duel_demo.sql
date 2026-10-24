@@ -1,7 +1,10 @@
 -- Spin Duel demo schema. No payments, cash balances, withdrawals, or redeemable prizes.
 create extension if not exists pgcrypto;
 
-create type public.match_status as enum ('waiting', 'ready', 'spinning', 'completed', 'cancelled');
+do $$ begin
+  create type public.match_status as enum ('waiting', 'ready', 'spinning', 'completed', 'cancelled');
+exception when duplicate_object then null;
+end $$;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -21,8 +24,7 @@ create table if not exists public.matches (
   result_seed text,
   started_at timestamptz,
   completed_at timestamptz,
-  created_at timestamptz not null default now(),
-  constraint winner_must_be_player check (winner_id is null or winner_id in (select player_id from public.match_players where match_id = id))
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.match_players (
@@ -62,12 +64,19 @@ alter table public.match_players enable row level security;
 alter table public.match_events enable row level security;
 alter table public.admin_audit_logs enable row level security;
 
+drop policy if exists "Profiles visible to authenticated users" on public.profiles;
 create policy "Profiles visible to authenticated users" on public.profiles for select to authenticated using (true);
-create policy "Users update own profile" on public.profiles for update to authenticated using (auth.uid() = id) with check (auth.uid() = id and role = (select p.role from public.profiles p where p.id = auth.uid()));
+drop policy if exists "Users update own profile" on public.profiles;
+create policy "Users update own profile" on public.profiles for update to authenticated using (auth.uid() = id) with check (auth.uid() = id and role = 'player');
+drop policy if exists "Users create own profile" on public.profiles;
 create policy "Users create own profile" on public.profiles for insert to authenticated with check (auth.uid() = id and role = 'player');
+drop policy if exists "Players see matches they joined" on public.matches;
 create policy "Players see matches they joined" on public.matches for select to authenticated using (exists (select 1 from public.match_players mp where mp.match_id = id and mp.player_id = auth.uid()) or status = 'waiting');
-create policy "Players see match participants" on public.match_players for select to authenticated using (exists (select 1 from public.match_players mine where mine.match_id = match_id and mine.player_id = auth.uid()));
-create policy "Players see match events" on public.match_events for select to authenticated using (exists (select 1 from public.match_players mp where mp.match_id = match_id and mp.player_id = auth.uid()));
+drop policy if exists "Players see match participants" on public.match_players;
+create policy "Players see match participants" on public.match_players for select to authenticated using (exists (select 1 from public.match_players mine where mine.match_id = match_players.match_id and mine.player_id = auth.uid()));
+drop policy if exists "Players see match events" on public.match_events;
+create policy "Players see match events" on public.match_events for select to authenticated using (exists (select 1 from public.match_players mp where mp.match_id = match_events.match_id and mp.player_id = auth.uid()));
+drop policy if exists "Admins see audit logs" on public.admin_audit_logs;
 create policy "Admins see audit logs" on public.admin_audit_logs for select to authenticated using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 
 create or replace function public.handle_new_user()
@@ -75,7 +84,7 @@ returns trigger language plpgsql security definer set search_path = public
 as $$
 begin
   insert into public.profiles(id, display_name, avatar_url)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email,'@',1), 'Player'), new.raw_user_meta_data->>'avatar_url')
+  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(coalesce(new.email,''),'@',1), 'Player'), new.raw_user_meta_data->>'avatar_url')
   on conflict (id) do nothing;
   return new;
 end;
@@ -92,18 +101,17 @@ as $$
 declare
   v_winner uuid;
   v_count integer;
+  v_status public.match_status;
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
-  perform 1 from public.matches m where m.id = p_match_id for update;
+  select m.status into v_status from public.matches m where m.id = p_match_id for update;
   if not found then raise exception 'Match not found'; end if;
   if not exists (select 1 from public.match_players mp where mp.match_id = p_match_id and mp.player_id = auth.uid()) then
     raise exception 'Only a match participant can spin';
   end if;
   select count(*) into v_count from public.match_players mp where mp.match_id = p_match_id;
   if v_count <> 2 then raise exception 'A demo match requires exactly two players'; end if;
-  if (select m.status from public.matches m where m.id = p_match_id) = 'completed' then
-    raise exception 'Match already completed';
-  end if;
+  if v_status = 'completed' then raise exception 'Match already completed'; end if;
   select mp.player_id into v_winner
   from public.match_players mp
   where mp.match_id = p_match_id
@@ -118,7 +126,6 @@ $$;
 revoke all on function public.spin_demo_match(uuid) from public, anon;
 grant execute on function public.spin_demo_match(uuid) to authenticated;
 
--- Realtime is enabled for match updates; clients must still obey RLS.
 do $$ begin
   alter publication supabase_realtime add table public.matches;
 exception when duplicate_object then null;
