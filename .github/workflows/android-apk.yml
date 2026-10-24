@@ -51,11 +51,25 @@ jobs:
         env:
           CI: '1'
 
+      - name: Diagnose Expo autolinking modules
+        run: |
+          echo "=== Expo module package versions ==="
+          npm ls expo expo-modules-core expo-modules-autolinking --depth=2 || true
+          echo "=== Module config files with publication metadata ==="
+          find node_modules -name expo-module.config.json -print0 | while IFS= read -r -d '' file; do
+            if grep -q '"publication"' "$file"; then
+              echo "--- $file"
+              cat "$file"
+            fi
+          done
+          echo "=== Android autolinking resolution ==="
+          npx expo-modules-autolinking resolve --platform android --json || true
+
       - name: Build installable debug APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon assembleDebug --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
